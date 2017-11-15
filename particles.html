@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+  <link rel="stylesheet" href="css/style.css">
+  <title>Particles</title>
+</head>
+<body>
+  <script src="js/utils.js"></script>
+  <script src="js/gl-matrix-min.js"></script>
+  <script id="vs" type="x-shader/x-vertex">
+    #version 300 es
+    precision mediump float;
+
+    uniform vec2 resolution;
+
+    in vec2 position;
+    // out vec3 vPosition;
+
+    void main() {
+      vec2 clip_position;
+      clip_position.x = (position.x / resolution.x) * 2.0 - 1.0;
+      clip_position.y = (position.y / resolution.y) * 2.0 - 1.0;
+      // vPosition = vec3(mvMatrix * vec4(position, 1.0));
+      gl_Position = vec4(position, 0.0, 1.0);
+    }
+  </script>
+  <script id="fs" type="x-shader/x-fragment">
+    #version 300 es
+    precision mediump float;
+
+    // in vec3 vPosition;
+    out vec4 color;
+
+    void main() {
+      color = vec4(1.0, 0.0, 0.0, 1.0);
+    }
+  </script>
+  <script>
+    'use strict';
+
+    var $canvas = document.createElement('canvas')
+    $canvas.width = window.innerWidth
+    $canvas.height = window.innerHeight
+    document.body.appendChild($canvas)
+
+    var gl = $canvas.getContext('webgl2', { antialias: false })
+    if (!!!gl) {
+      document.getElementById('info').innerHTML = 'WebGL 2 is not available.  See <a href="https://www.khronos.org/webgl/wiki/Getting_a_WebGL_Implementation">How to get a WebGL 2 implementation</a>'
+      throw ""
+    }
+    gl.enable(gl.DEPTH_TEST);
+    gl.enable(gl.CULL_FACE);
+    gl.cullFace(gl.BACK);
+
+    var program = createProgram(gl, getShaderSource('vs'), getShaderSource('fs'))
+    gl.useProgram(program);
+
+    var positionLocation = gl.getAttribLocation(program, 'position')
+    var mvMatrixLocation = gl.getUniformLocation(program, 'mvMatrix')
+    var pMatrixLocation = gl.getUniformLocation(program, 'pMatrix')
+    var resolutionLocation = gl.getUniformLocation(program, 'resolution')
+
+    gl.uniform2f(resolutionLocation, $canvas.width, $canvas.height)
+
+
+    var numParticles = 1000
+    var pos = new Float32Array(numParticles * 4)  // [oldPos.x, oldPos.y, pos.x, pos.y] ...
+    for (var i = 0; i < numParticles; i++) {
+      var x = Math.random() * $canvas.width
+      var y = Math.random() * $canvas.height
+      // particles.push(new Particle(x, y))
+      pos[4*i] = pos[4*i+2] = x
+      pos[4*i+1] = pos[4*i+3] = y
+    }
+
+    var positionBuffer = gl.createBuffer()
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)
+
+    var vao = gl.createVertexArray()
+    gl.bindVertexArray(vao)
+    gl.enableVertexAttribArray(positionLocation)
+    gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0)
+
+
+    function attract(x, y) {
+      for (var i = 0; i < numParticles; i++) {
+        var dx = x - pos[4*i+2]
+        var dy = y - pos[4*i+3]
+        var d = Math.sqrt(dx * dx + dy * dy)
+        pos[4*i+2] += dx / d
+        pos[4*i+3] += dy / d
+      }
+    }
+
+    function verletIntergrate() {
+      for (var i = 0; i < numParticles; i++) {
+        var vx = pos[4*i+2] - pos[4*i]
+        var vy = pos[4*i+3] - pos[4*i+1]
+        pos[4*i] = pos[4*i+2]
+        pos[4*i+1] = pos[4*i+3]
+        pos[4*i+2] += vx
+        pos[4*i+3] += vy
+      }
+    }
+
+    function render() {
+      attract(mouse.x, mouse.y)
+      verletIntergrate()
+
+      gl.clearColor(0.0, 0.0, 0.0, 1.0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+
+      gl.bindVertexArray(vao);
+      gl.bufferData(gl.ARRAY_BUFFER, pos, gl.DYNAMIC_DRAW)
+
+      gl.drawArrays(gl.LINES, 0, numParticles * 2);
+
+      requestAnimationFrame(render);
+    }
+
+    var mouse = {
+      x: 0,
+      y: 0
+    }
+    window.addEventListener('mousemove', (e) => {
+      mouse.x = e.x
+      mouse.y = e.y
+    })
+
+    render()
+  </script>
+</body>
+</html>
